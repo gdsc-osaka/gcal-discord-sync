@@ -1,4 +1,0 @@
-# Only push the bundled output and manifest in dist/
-**/**
-!dist/Code.js
-!dist/appsscript.json
