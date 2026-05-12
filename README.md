@@ -1,6 +1,6 @@
 # gcal-discord-sync
 
-[![CI / CD](https://github.com/itakosu55/gcal-discord-sync/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/itakosu55/gcal-discord-sync/actions/workflows/ci-cd.yml)
+[![CI / CD](https://github.com/gdsc-osaka/gcal-discord-sync/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/gdsc-osaka/gcal-discord-sync/actions/workflows/ci-cd.yml)
 
 Google カレンダーの予定を Discord の Guild Scheduled Event (External) として自動的にミラーリングし、
 イベント開始/終了時刻ぴったりに **ACTIVE / COMPLETED** へ遷移させて、Discord サーバ上に「開催中」を表示するための Google Apps Script ツールです。
