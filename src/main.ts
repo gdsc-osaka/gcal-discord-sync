@@ -30,7 +30,10 @@ const TZ = Session.getScriptTimeZone() || 'Asia/Tokyo';
 
 export function incrementalSync(): void {
   const config = readConfig();
-  const discord = new DiscordClient(config.botToken, config.guildId);
+  const discord = new DiscordClient(config.botToken, config.guildId, {
+    proxyUrl: config.proxyUrl,
+    proxySecret: config.proxySecret,
+  });
   const syncToken = loadSyncToken();
 
   if (!syncToken) {
@@ -65,7 +68,10 @@ export function incrementalSync(): void {
 
 export function transitionOne(): void {
   const config = readConfig();
-  const discord = new DiscordClient(config.botToken, config.guildId);
+  const discord = new DiscordClient(config.botToken, config.guildId, {
+    proxyUrl: config.proxyUrl,
+    proxySecret: config.proxySecret,
+  });
   const now = new Date();
   let mapping = loadMapping();
   const actions = computeStatusActions(mapping, now);
@@ -79,7 +85,10 @@ export function transitionOne(): void {
 
 export function fullReconcile(): void {
   const config = readConfig();
-  const discord = new DiscordClient(config.botToken, config.guildId);
+  const discord = new DiscordClient(config.botToken, config.guildId, {
+    proxyUrl: config.proxyUrl,
+    proxySecret: config.proxySecret,
+  });
   const now = new Date();
   let mapping = loadMapping();
 

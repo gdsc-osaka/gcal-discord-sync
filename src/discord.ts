@@ -5,20 +5,28 @@ import {
   EventStatus,
 } from './types';
 
-const API_BASE = 'https://discord.com/api/v10';
+const DISCORD_ORIGIN = 'https://discord.com';
 
-// Discord requires this User-Agent format; otherwise Cloudflare in front of the
-// API rejects the request with HTTP 403 + body { code: 40333, message: "internal
-// network error" }. UrlFetchApp's default UA looks like a generic crawler and
-// gets blocked. See https://docs.discord.com/developers/reference#user-agent
-const USER_AGENT =
-  'DiscordBot (https://github.com/gdsc-osaka/gcal-discord-sync, 0.1.0)';
+export interface DiscordClientOptions {
+  /** Origin to send requests to. Defaults to https://discord.com when no proxy is configured. */
+  proxyUrl?: string;
+  /** Shared secret accompanying the proxy request as X-Proxy-Secret. */
+  proxySecret?: string;
+}
 
 export class DiscordClient {
+  private readonly apiBase: string;
+  private readonly proxySecret?: string;
+
   constructor(
     private readonly botToken: string,
     private readonly guildId: string,
-  ) {}
+    options: DiscordClientOptions = {},
+  ) {
+    const origin = options.proxyUrl?.replace(/\/+$/, '') || DISCORD_ORIGIN;
+    this.apiBase = `${origin}/api/v10`;
+    this.proxySecret = options.proxySecret;
+  }
 
   createEvent(body: DiscordEventCreateBody): DiscordEventResponse {
     return this.request<DiscordEventResponse>(
@@ -45,14 +53,16 @@ export class DiscordClient {
     path: string,
     body?: unknown,
   ): T {
-    const url = API_BASE + path;
+    const url = this.apiBase + path;
+    const headers: Record<string, string> = {
+      Authorization: `Bot ${this.botToken}`,
+    };
+    if (this.proxySecret) headers['X-Proxy-Secret'] = this.proxySecret;
+
     const baseOptions: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
       method,
       contentType: 'application/json',
-      headers: {
-        Authorization: `Bot ${this.botToken}`,
-        'User-Agent': USER_AGENT,
-      },
+      headers,
       muteHttpExceptions: true,
       payload: body ? JSON.stringify(body) : undefined,
     };

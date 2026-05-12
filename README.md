@@ -21,6 +21,17 @@ GDG on Campus Osaka コミュニティのイベント告知運用を想定して
 
 ## セットアップ
 
+> [!IMPORTANT]
+> GAS の `UrlFetchApp` は `User-Agent` を上書きできない仕様で
+> ([Issue Tracker #36758197](https://issuetracker.google.com/issues/36758197))、
+> GAS のデフォルト UA は Discord の Cloudflare WAF に **HTTP 403 / code 40333
+> "internal network error"** で弾かれます
+> ([discord-api-docs #6473](https://github.com/discord/discord-api-docs/issues/6473))。
+> 本リポジトリは `worker/` 配下に **Cloudflare Worker のリレー** を同梱し、
+> 適切な User-Agent (`DiscordBot (<URL>, <ver>)`) に書き換えた上で
+> `discord.com` に転送します。Worker を先にデプロイしてから、GAS の
+> Script Properties `PROXY_URL` (任意で `PROXY_SECRET`) を設定してください。
+
 ### 1. Discord 側の準備
 
 1. [Discord Developer Portal](https://discord.com/developers/applications) で **New Application** → 名前を入力
@@ -30,7 +41,24 @@ GDG on Campus Osaka コミュニティのイベント告知運用を想定して
    - Bot Permissions: `Create Events`
 4. 対象 Discord サーバの ID を控える（あとで `DISCORD_GUILD_ID` に設定）。サーバ設定で **開発者モード** を有効化するとサーバ名右クリックから ID をコピーできます。
 
-### 2. ローカル開発環境
+### 2. Cloudflare Worker リレーをデプロイ
+
+詳細は [`worker/README.md`](worker/README.md)。手早くは:
+
+```powershell
+cd worker
+npm install
+npx wrangler login              # 初回のみ
+npx wrangler deploy             # *.workers.dev に公開
+# (任意) 共有秘密を設定
+npx wrangler secret put PROXY_SECRET
+cd ..
+```
+
+デプロイ完了時の URL（例: `https://gcal-discord-sync-relay.<sub>.workers.dev`）
+を控えておきます。
+
+### 3. ローカル開発環境
 
 ```powershell
 npm install
@@ -39,7 +67,7 @@ npm test            # ロジック単体テスト
 npm run build       # webpack で dist/Code.js と dist/appsscript.json を生成
 ```
 
-### 3. Apps Script プロジェクトと接続
+### 4. Apps Script プロジェクトと接続
 
 ```powershell
 npx clasp login
@@ -50,21 +78,23 @@ npm run push        # build → clasp push
 
 `clasp create` のかわりに既存スクリプトに接続したい場合は `npx clasp clone <scriptId> --rootDir dist`。
 
-### 4. Script Properties を設定
+### 5. Script Properties を設定
 
 Apps Script エディタを開き、左サイド **プロジェクトの設定 → スクリプト プロパティ** で以下を追加:
 
-| キー | 値 |
-|---|---|
-| `CALENDAR_ID` | 同期元カレンダー ID（例: `xxxxx@group.calendar.google.com`） |
-| `DISCORD_GUILD_ID` | Discord サーバ ID |
-| `DISCORD_BOT_TOKEN` | Bot Token |
-| `DEFAULT_LOCATION` | GCal `location` 空欄時の埋め草（例: `Online`） |
-| `HORIZON_DAYS` | 任意。未指定なら 30 |
+| キー | 必須 | 値 |
+|---|---|---|
+| `CALENDAR_ID` | ◯ | 同期元カレンダー ID（例: `xxxxx@group.calendar.google.com`） |
+| `DISCORD_GUILD_ID` | ◯ | Discord サーバ ID |
+| `DISCORD_BOT_TOKEN` | ◯ | Bot Token |
+| `PROXY_URL` | ◯ | Cloudflare Worker URL（手順 2 で表示された `https://...workers.dev`） |
+| `PROXY_SECRET` | △ | Worker に共有秘密を入れた場合のみ。Worker と GAS の両方で同一値 |
+| `DEFAULT_LOCATION` | | GCal `location` 空欄時の埋め草（デフォルト `Online`） |
+| `HORIZON_DAYS` | | 同期する未来日数（デフォルト 30） |
 
 > `SYNC_TOKEN` と `MAPPINGS` はスクリプトが自動管理します。手で触らないでください。
 
-### 5. トリガー登録 & 初期同期
+### 6. トリガー登録 & 初期同期
 
 Apps Script エディタの関数選択で `installTriggers` を選び、▶ 実行。初回は OAuth 同意ダイアログが出るので承認してください。
 内部で `fullReconcile` が一度走り、sync token と Discord 側イベントの初期状態が揃います。

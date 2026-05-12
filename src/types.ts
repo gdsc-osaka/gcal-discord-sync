@@ -23,6 +23,10 @@ export interface Config {
   botToken: string;
   defaultLocation: string;
   horizonDays: number;
+  /** Origin of the Cloudflare Worker relay (e.g. https://gcal-discord-sync-relay.<sub>.workers.dev). */
+  proxyUrl?: string;
+  /** Shared secret to authenticate against the relay; sent as `X-Proxy-Secret`. */
+  proxySecret?: string;
 }
 
 /** A calendar event normalized into the shape we send to Discord. */

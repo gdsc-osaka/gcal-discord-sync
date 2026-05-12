@@ -1,0 +1,15 @@
+{
+  "name": "gcal-discord-sync-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker that relays Discord API calls from Google Apps Script, rewriting the User-Agent to bypass Discord's Cloudflare WAF (error 40333).",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "secret:set": "wrangler secret put PROXY_SECRET",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^3.95.0"
+  }
+}

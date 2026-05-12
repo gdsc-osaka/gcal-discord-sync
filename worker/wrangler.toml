@@ -1,0 +1,12 @@
+name = "gcal-discord-sync-relay"
+main = "src/index.js"
+compatibility_date = "2026-04-01"
+
+# Public *.workers.dev subdomain is enabled by default. Override or attach a
+# custom route if you prefer.
+workers_dev = true
+
+# Logs of every request — handy while bringing the system up, can be turned off
+# afterwards.
+[observability]
+enabled = true
