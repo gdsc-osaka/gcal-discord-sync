@@ -16,7 +16,10 @@ module.exports = {
   },
   optimization: { minimize: false },
   plugins: [
-    new GasPlugin(),
+    // gas-webpack-plugin scans the entry module's `export function …` declarations
+    // and prepends top-level stub function declarations to the bundle, so the GAS
+    // editor's static analyzer can list them in the function picker.
+    new GasPlugin({ autoGlobalExportsFiles: ['src/main.ts'] }),
     new CopyPlugin({
       patterns: [{ from: 'src/appsscript.json', to: 'appsscript.json' }],
     }),

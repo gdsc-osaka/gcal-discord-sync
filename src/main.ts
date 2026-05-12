@@ -28,7 +28,7 @@ import {
 
 const TZ = Session.getScriptTimeZone() || 'Asia/Tokyo';
 
-function incrementalSync(): void {
+export function incrementalSync(): void {
   const config = readConfig();
   const discord = new DiscordClient(config.botToken, config.guildId);
   const syncToken = loadSyncToken();
@@ -63,7 +63,7 @@ function incrementalSync(): void {
   saveSyncToken(nextSyncToken);
 }
 
-function transitionOne(): void {
+export function transitionOne(): void {
   const config = readConfig();
   const discord = new DiscordClient(config.botToken, config.guildId);
   const now = new Date();
@@ -77,7 +77,7 @@ function transitionOne(): void {
   saveMapping(mapping);
 }
 
-function fullReconcile(): void {
+export function fullReconcile(): void {
   const config = readConfig();
   const discord = new DiscordClient(config.botToken, config.guildId);
   const now = new Date();
@@ -99,7 +99,7 @@ function fullReconcile(): void {
   if (result.nextSyncToken) saveSyncToken(result.nextSyncToken);
 }
 
-function installTriggers(): void {
+export function installTriggers(): void {
   removeTriggersFor(['incrementalSync', 'fullReconcile', 'transitionOne']);
   ScriptApp.newTrigger('incrementalSync').timeBased().everyMinutes(5).create();
   ScriptApp.newTrigger('fullReconcile').timeBased().atHour(3).everyDays(1).create();
@@ -107,7 +107,7 @@ function installTriggers(): void {
   fullReconcile();
 }
 
-function uninstallTriggers(): void {
+export function uninstallTriggers(): void {
   removeTriggersFor(['incrementalSync', 'fullReconcile', 'transitionOne']);
   console.info('All triggers removed.');
 }
@@ -234,10 +234,7 @@ function toCreateBody(event: NormalizedEvent): DiscordEventCreateBody {
   return body;
 }
 
-// Expose to GAS global scope for time-driven triggers.
-const g = globalThis as unknown as Record<string, unknown>;
-g.incrementalSync = incrementalSync;
-g.transitionOne = transitionOne;
-g.fullReconcile = fullReconcile;
-g.installTriggers = installTriggers;
-g.uninstallTriggers = uninstallTriggers;
+// Entry-point exports above are detected by gas-webpack-plugin and re-emitted
+// as top-level `function X(){}` stubs so the Apps Script editor lists them in
+// the function picker. At bundle runtime, the IIFE re-binds each global to the
+// real implementation, so trigger invocation calls into the bundled code.
