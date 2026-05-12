@@ -1,6 +1,7 @@
 import {
   fetchAllUpcoming,
   fetchIncremental,
+  refreshSyncToken,
   sha1Hasher,
   SyncTokenInvalidError,
 } from './calendar';
@@ -92,7 +93,7 @@ export function fullReconcile(): void {
   const now = new Date();
   let mapping = loadMapping();
 
-  const result = fetchAllUpcoming(
+  const events = fetchAllUpcoming(
     config.calendarId,
     config.horizonDays,
     config.defaultLocation,
@@ -100,12 +101,22 @@ export function fullReconcile(): void {
     sha1Hasher,
     now,
   );
-  const plan = diffFullScan(result.events, mapping);
+  const plan = diffFullScan(events, mapping);
   mapping = applyPlan(plan, mapping, discord, config, now);
   mapping = applyStatusActions(computeStatusActions(mapping, now), mapping, discord);
   reschedulePinpointTriggers(mapping, now);
   saveMapping(mapping);
-  if (result.nextSyncToken) saveSyncToken(result.nextSyncToken);
+
+  // The reconcile list above uses timeMin/timeMax/orderBy and therefore
+  // never returns nextSyncToken; obtain one via a separate unfiltered list.
+  const nextSyncToken = refreshSyncToken(config.calendarId);
+  if (nextSyncToken) {
+    saveSyncToken(nextSyncToken);
+  } else {
+    console.warn(
+      'refreshSyncToken returned no token; next incrementalSync will fall back to fullReconcile.',
+    );
+  }
 }
 
 export function installTriggers(): void {

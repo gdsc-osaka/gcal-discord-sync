@@ -143,7 +143,15 @@ export function fetchIncremental(
   return { changes, nextSyncToken: lastResponse?.nextSyncToken ?? null };
 }
 
-/** Full scan within `now .. now + horizonDays`. Also returns the new sync token from the final page. */
+/**
+ * Full scan within `now .. now + horizonDays`. Returns just the events —
+ * `nextSyncToken` is intentionally not requested here because the Calendar
+ * API suppresses `nextSyncToken` in any response that uses `timeMin`,
+ * `timeMax`, `orderBy`, `q`, or `updatedMin`. The token must be obtained
+ * separately via {@link refreshSyncToken}.
+ *
+ * See https://developers.google.com/workspace/calendar/api/v3/reference/events/list
+ */
 export function fetchAllUpcoming(
   calendarId: string,
   horizonDays: number,
@@ -151,12 +159,11 @@ export function fetchAllUpcoming(
   defaultTz: string,
   hasher: Hasher,
   now: Date = new Date(),
-): { events: NormalizedEvent[]; nextSyncToken: string | null } {
+): NormalizedEvent[] {
   const timeMin = now.toISOString();
   const timeMax = new Date(now.getTime() + horizonDays * 24 * 60 * 60 * 1000).toISOString();
   const events: NormalizedEvent[] = [];
   let pageToken: string | undefined;
-  let lastResponse: GoogleAppsScript.Calendar.Schema.Events | undefined;
   do {
     const res = Calendar.Events!.list(calendarId, {
       timeMin,
@@ -166,7 +173,6 @@ export function fetchAllUpcoming(
       pageToken,
       maxResults: 250,
     });
-    lastResponse = res;
     for (const item of res.items || []) {
       if (item.status === 'cancelled') continue;
       if (item.start && item.end) {
@@ -175,19 +181,24 @@ export function fetchAllUpcoming(
     }
     pageToken = res.nextPageToken || undefined;
   } while (pageToken);
-  return { events, nextSyncToken: lastResponse?.nextSyncToken ?? null };
+  return events;
 }
 
-/** Re-prime a sync token by performing a no-op list. */
-export function refreshSyncToken(calendarId: string, now: Date = new Date()): string | null {
+/**
+ * Re-prime a sync token by paging through an *unfiltered* list. Filters like
+ * `timeMin`/`timeMax`/`orderBy` would cause the API to omit `nextSyncToken`
+ * entirely, so this call deliberately uses only `singleEvents` + `showDeleted`
+ * plus the maximum page size to minimize round-trips.
+ */
+export function refreshSyncToken(calendarId: string): string | null {
   let pageToken: string | undefined;
   let lastResponse: GoogleAppsScript.Calendar.Schema.Events | undefined;
   do {
     const res = Calendar.Events!.list(calendarId, {
-      timeMin: now.toISOString(),
       singleEvents: true,
+      showDeleted: true,
       pageToken,
-      maxResults: 250,
+      maxResults: 2500,
     });
     lastResponse = res;
     pageToken = res.nextPageToken || undefined;
