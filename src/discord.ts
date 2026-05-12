@@ -7,6 +7,13 @@ import {
 
 const API_BASE = 'https://discord.com/api/v10';
 
+// Discord requires this User-Agent format; otherwise Cloudflare in front of the
+// API rejects the request with HTTP 403 + body { code: 40333, message: "internal
+// network error" }. UrlFetchApp's default UA looks like a generic crawler and
+// gets blocked. See https://docs.discord.com/developers/reference#user-agent
+const USER_AGENT =
+  'DiscordBot (https://github.com/gdsc-osaka/gcal-discord-sync, 0.1.0)';
+
 export class DiscordClient {
   constructor(
     private readonly botToken: string,
@@ -42,7 +49,10 @@ export class DiscordClient {
     const baseOptions: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
       method,
       contentType: 'application/json',
-      headers: { Authorization: `Bot ${this.botToken}` },
+      headers: {
+        Authorization: `Bot ${this.botToken}`,
+        'User-Agent': USER_AGENT,
+      },
       muteHttpExceptions: true,
       payload: body ? JSON.stringify(body) : undefined,
     };
