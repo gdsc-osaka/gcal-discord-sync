@@ -135,6 +135,11 @@ export function uninstallTriggers(): void {
 
 // ----- helpers -----
 
+function isFinishedDiscordEventError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.includes('180000') || msg.includes('Cannot update a finished event');
+}
+
 function applyPlan(
   plan: SyncPlan,
   mapping: Mapping,
@@ -173,8 +178,7 @@ function applyPlan(
       next[upd.event.gcalEventId] = applyUpdate(upd.entry, upd.event, now);
       console.info(`Patched Discord event ${upd.entry.discordEventId} (${upd.event.name}).`);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes('180000') || msg.includes('Cannot update a finished event')) {
+      if (isFinishedDiscordEventError(e)) {
         // Discord側ですでに終了している（COMPLETED/CANCELED）イベントは更新できないため、
         // ローカルの状態をCOMPLETEDにし、それ以上の遷移や更新を行わないようにする。
         // また、将来のフル同期（fullReconcile）やカレンダー更新時に同一イベントが再計画されるのを防ぐため、
@@ -198,15 +202,14 @@ function applyPlan(
 
   for (const cancel of plan.cancels) {
     try {
-      // COMPLETED can't be patched; just drop from mapping.
+      // 終了済み（COMPLETEDまたはCANCELED）のイベントはステータス更新できないため、そのままマッピングから削除する
       if (cancel.entry.status !== COMPLETED && cancel.entry.status !== CANCELED) {
         discord.setStatus(cancel.entry.discordEventId, CANCELED);
       }
       delete next[cancel.gcalEventId];
       console.info(`Canceled & dropped mapping for ${cancel.gcalEventId}.`);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes('180000') || msg.includes('Cannot update a finished event')) {
+      if (isFinishedDiscordEventError(e)) {
         // すでに終了しているため、そのままローカルのマッピングから削除する
         delete next[cancel.gcalEventId];
         console.warn(
@@ -243,8 +246,7 @@ function applyStatusActions(
         `Discord event ${current.discordEventId} -> status=${a.target} for ${a.gcalEventId}.`,
       );
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes('180000') || msg.includes('Cannot update a finished event')) {
+      if (isFinishedDiscordEventError(e)) {
         // すでにDiscord側で終了しているイベントは、ローカルステータスを目標（CANCELED/COMPLETED）に設定して完了とする
         const resolvedStatus = a.target === CANCELED ? CANCELED : COMPLETED;
         next[a.gcalEventId] = {
