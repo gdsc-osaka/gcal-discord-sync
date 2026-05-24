@@ -176,11 +176,16 @@ function applyPlan(
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes('180000') || msg.includes('Cannot update a finished event')) {
         // Discord側ですでに終了している（COMPLETED/CANCELED）イベントは更新できないため、
-        // ローカルの状態をCOMPLETEDにし、それ以上の遷移や更新を行わないようにする
+        // ローカルの状態をCOMPLETEDにし、それ以上の遷移や更新を行わないようにする。
+        // また、将来のフル同期（fullReconcile）やカレンダー更新時に同一イベントが再計画されるのを防ぐため、
+        // 新しい contentHash, startISO, endISO をマッピングに書き込んで同期させる。
         next[upd.event.gcalEventId] = {
           ...upd.entry,
           status: COMPLETED,
           nextTransitionAt: null,
+          contentHash: upd.event.contentHash,
+          startISO: upd.event.startISO,
+          endISO: upd.event.endISO,
         };
         console.warn(
           `Discord event ${upd.entry.discordEventId} has already finished on Discord. Local status updated to COMPLETED.`,
