@@ -19,6 +19,7 @@ import {
 } from './sync';
 import {
   CANCELED,
+  COMPLETED,
   Config,
   DiscordEventCreateBody,
   Mapping,
@@ -172,20 +173,43 @@ function applyPlan(
       next[upd.event.gcalEventId] = applyUpdate(upd.entry, upd.event, now);
       console.info(`Patched Discord event ${upd.entry.discordEventId} (${upd.event.name}).`);
     } catch (e) {
-      console.error(`Failed to patch Discord event ${upd.entry.discordEventId}:`, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('180000') || msg.includes('Cannot update a finished event')) {
+        // Discord側ですでに終了している（COMPLETED/CANCELED）イベントは更新できないため、
+        // ローカルの状態をCOMPLETEDにし、それ以上の遷移や更新を行わないようにする
+        next[upd.event.gcalEventId] = {
+          ...upd.entry,
+          status: COMPLETED,
+          nextTransitionAt: null,
+        };
+        console.warn(
+          `Discord event ${upd.entry.discordEventId} has already finished on Discord. Local status updated to COMPLETED.`,
+        );
+      } else {
+        console.error(`Failed to patch Discord event ${upd.entry.discordEventId}:`, e);
+      }
     }
   }
 
   for (const cancel of plan.cancels) {
     try {
       // COMPLETED can't be patched; just drop from mapping.
-      if (cancel.entry.status !== 3 && cancel.entry.status !== 4) {
+      if (cancel.entry.status !== COMPLETED && cancel.entry.status !== CANCELED) {
         discord.setStatus(cancel.entry.discordEventId, CANCELED);
       }
       delete next[cancel.gcalEventId];
       console.info(`Canceled & dropped mapping for ${cancel.gcalEventId}.`);
     } catch (e) {
-      console.error(`Failed to cancel Discord event ${cancel.entry.discordEventId}:`, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('180000') || msg.includes('Cannot update a finished event')) {
+        // すでに終了しているため、そのままローカルのマッピングから削除する
+        delete next[cancel.gcalEventId];
+        console.warn(
+          `Discord event ${cancel.entry.discordEventId} was already finished on Discord. Dropped mapping for ${cancel.gcalEventId}.`,
+        );
+      } else {
+        console.error(`Failed to cancel Discord event ${cancel.entry.discordEventId}:`, e);
+      }
     }
   }
 
@@ -214,7 +238,21 @@ function applyStatusActions(
         `Discord event ${current.discordEventId} -> status=${a.target} for ${a.gcalEventId}.`,
       );
     } catch (e) {
-      console.error(`Failed status transition for ${a.gcalEventId} -> ${a.target}:`, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('180000') || msg.includes('Cannot update a finished event')) {
+        // すでにDiscord側で終了しているイベントは、ローカルステータスを目標（CANCELED/COMPLETED）に設定して完了とする
+        const resolvedStatus = a.target === CANCELED ? CANCELED : COMPLETED;
+        next[a.gcalEventId] = {
+          ...current,
+          status: resolvedStatus,
+          nextTransitionAt: null,
+        };
+        console.warn(
+          `Discord event ${current.discordEventId} was already finished on Discord. Local status set to ${resolvedStatus} for ${a.gcalEventId}.`,
+        );
+      } else {
+        console.error(`Failed status transition for ${a.gcalEventId} -> ${a.target}:`, e);
+      }
     }
   }
   return next;
